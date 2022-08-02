@@ -1,0 +1,90 @@
+project({{ properCase name }})
+
+cmake_minimum_required(VERSION 3.8)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_executable(${PROJECT_NAME} src/main.cpp)
+
+option(BLOCS_DEBUG_IMGUI "Make Dear ImGUI available" {{#if imgui}}ON{{else}}OFF{{/if}})
+option(BLOCS_DEBUG_TRACY "Make Tracy Profiler available" {{#if tracy}}ON{{else}}OFF{{/if}})
+
+if (WIN32)
+  target_link_libraries(${PROJECT_NAME} wsock32 ws2_32)
+endif()
+
+include(FetchContent)
+
+FetchContent_Declare(
+    blocs
+    GIT_REPOSITORY  https://github.com/benjitrosch/blocs
+    GIT_TAG         main
+    GIT_PROGRESS    TRUE
+)
+FetchContent_MakeAvailable(blocs)
+
+if (BLOCS_DEBUG_IMGUI)
+    FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY  https://github.com/ocornut/imgui
+        GIT_TAG         377b864bb4a9ed9a25674b04f64f63baf221060d
+        GIT_PROGRESS    TRUE
+    )
+    FetchContent_MakeAvailable(imgui)
+
+    add_library(imgui
+        ${imgui_SOURCE_DIR}/imgui.cpp
+        ${imgui_SOURCE_DIR}/imgui_demo.cpp
+        ${imgui_SOURCE_DIR}/imgui_draw.cpp
+        ${imgui_SOURCE_DIR}/imgui_tables.cpp
+        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+    )
+
+    target_include_directories(imgui
+        PUBLIC
+        ${SDL2_SOURCE_DIR}/include
+        ${imgui_SOURCE_DIR}
+        ${imgui_SOURCE_DIR}/backends
+    )
+
+    target_link_libraries(${PROJECT_NAME} imgui)
+endif()
+
+if (BLOCS_DEBUG_TRACY)
+	option( TRACY_ENABLE "" ON)
+	option( TRACY_ON_DEMAND "" ON)
+
+	FetchContent_Declare(
+		tracy
+		GIT_REPOSITORY 	https://github.com/wolfpld/tracy.git
+		GIT_TAG 		master
+		GIT_SHALLOW 	TRUE
+		GIT_PROGRESS 	TRUE
+	)
+	FetchContent_MakeAvailable(tracy)
+
+	target_link_libraries(${PROJECT_NAME} TracyClient)
+endif()
+
+target_link_libraries(${PROJECT_NAME} blocs)
+
+add_custom_command(
+    TARGET ${PROJECT_NAME} PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory 
+    ${CMAKE_SOURCE_DIR}/assets
+    ${CMAKE_CURRENT_BINARY_DIR}/assets
+)
+
+add_custom_command(
+    TARGET ${PROJECT_NAME} PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_SOURCE_DIR}/index.html
+    ${CMAKE_CURRENT_BINARY_DIR}/index.html
+)
+
+if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-s USE_SDL=2 -s USE_WEBGL2=1 -s GL_ASSERTIONS=1 -s GL_DEBUG=1 -s ALLOW_MEMORY_GROWTH=1 --preload-file assets --shell-file index.html")
+    set(CMAKE_EXECUTABLE_SUFFIX ".html")
+endif()

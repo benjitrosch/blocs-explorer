@@ -1,0 +1,131 @@
+{{#if imgui}}
+#define DEBUG
+#define BLOCS_DEBUG_IMGUI
+#ifdef BLOCS_DEBUG_IMGUI
+    #include <imgui.h>
+    #include <imgui_impl_sdl.h>
+    #include <imgui_impl_opengl3.h>
+#endif
+{{/if}}
+{{#if tracy}}
+#define BLOCS_DEBUG_TRACY
+#ifdef BLOCS_DEBUG_TRACY
+    #include <tracy/Tracy.hpp>
+#endif
+{{/if}}
+#define WIDTH  {{ width }}
+#define HEIGHT {{ height }}
+
+#include <blocs.h>
+{{#if imgui}}
+#include <blocs/debug/imgui.h>
+{{/if}}
+
+using namespace blocs;
+{{#if imgui}}
+using namespace blocs::debug;
+using namespace blocs::debug::imgui;
+{{/if}}
+
+namespace
+{
+    Game* game;
+    {{#ifneq world "none"}}
+    {{ world }}::World* world;
+    {{/ifneq}}
+    SpriteAtlas* sprite_atlas;
+    SpriteBatch* sprite_batch;
+    {{#if imgui}}
+    ImGUIConfig* imgui_config;
+    {{/if}}
+
+    std::unordered_map<str, AtlasTexture>* content;
+}
+
+void Game::start()
+{
+    {{#ifneq world "none"}}
+    world = new {{ world }}::World{};
+    {{/ifneq}}
+    sprite_atlas = new SpriteAtlas(0, 1, false);
+    sprite_batch = new SpriteBatch();
+
+    content = new std::unordered_map<str, AtlasTexture>{};
+    std::vector<str> image_filenames;
+    platform::filesystem::all_files_in_dir(image_filenames, (platform::get_app_path_str() + "assets/sprites").c_str());
+    for (auto p : image_filenames)
+    {
+        if (platform::filesystem::get_file_extension(p) == ".png")
+        {
+            auto* node = sprite_atlas->add(p);
+            content->emplace(platform::filesystem::get_file_name(p), node);
+        }
+    }
+    sprite_atlas->pack();
+    sprite_atlas->generate_texture();
+    {{#if imgui}}
+
+    imgui_config = new ImGUIConfig{
+        imgui::create(),
+        imgui::get_io()
+    };
+    imgui::init(window, renderer);
+
+    on_event = [](Event& event)
+    {
+        imgui::events(event);
+    };
+
+    on_shutdown = []()
+    {
+        imgui::shutdown(imgui_config->ctx);
+    };
+    {{/if}}
+}
+
+void Game::update(Time time)
+{
+    if (input.key_pressed(Key::Escape))
+        exit();
+    {{#ifneq world "none"}}
+
+    world->update(time);
+    {{/ifneq}}
+}
+
+void Game::render(Time time)
+{
+    auto [ screen_w, screen_h ] = platform::get_draw_size(window);
+    auto [ x, y, w, h ] = renderer::get_viewport(WIDTH, HEIGHT, screen_w, screen_h);
+    renderer::viewport(x, y, w, h);
+
+    mat4x4f matrix = mat4x4f::ortho(WIDTH, HEIGHT);
+    sprite_batch->begin(matrix);
+    sprite_batch->draw(
+        sprite_atlas->get_texture(),
+        { 0, 0, (f32)sprite_atlas->width, (f32)sprite_atlas->height },
+        { 0, 0, (f32)sprite_atlas->width, (f32)sprite_atlas->height }
+    );
+    sprite_batch->end();
+    {{#ifneq world "none"}}
+
+    world->render(time);
+    {{/ifneq}}
+    {{#if imgui}}
+
+    imgui::new_frame();
+    ImGui::Begin("{{ properCase name }}");
+    ImGui::End();
+    imgui::draw(imgui_config->io, window, renderer);
+    {{/if}}
+}
+
+int main(int argc, char* argv[])
+{
+    {{#if tracy}}
+    ZoneScoped;
+    {{/if}}
+    game = new Game("{{ name }}", WIDTH, HEIGHT);
+    game->background(0x6495f7);
+    return game->run({{ framerate }});
+}

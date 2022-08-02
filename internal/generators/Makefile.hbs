@@ -1,0 +1,37 @@
+debug:
+	d=$$(date +%s); \
+	rm -rf build; \
+	cmake -B build -DCMAKE_BUILD_TYPE=Debug; \
+	cmake --build build \
+	&& echo "\x1B[32mDone - build completed in $$(($$(date +%s)-d)) seconds\x1B[0m"
+
+release:
+	d=$$(date +%s); \
+	rm -rf build; \
+	cmake -B build -DCMAKE_BUILD_TYPE=Release; \
+	cmake --build build \
+	&& echo "\x1B[32mDone - release completed in $$(($$(date +%s)-d)) seconds\x1B[0m"
+
+web:
+ifeq ($(OS),Windows_NT)
+	emsdk_env.bat
+else
+	source ~/emsdk/emsdk_env.sh
+endif
+	d=$$(date +%s);
+	rm -rf build; \
+	emcmake cmake . -B build; \
+	cmake --build build \
+	&& echo "\x1B[32mDone - web build completed in $$(($$(date +%s)-d)) seconds\x1B[0m"
+
+rebuild:
+	d=$$(date +%s); \
+	cmake --build build \
+	&& echo "\x1B[32mDone - rebuilt in $$(($$(date +%s)-d)) seconds\x1B[0m"
+
+play:
+	build/{{ properCase name }}
+	
+p:
+	make rebuild
+	make play
